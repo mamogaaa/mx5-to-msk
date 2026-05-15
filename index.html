@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Mazda MX-5 — Германия → Москва</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+  .card-img { aspect-ratio: 4/3; object-fit: cover; }
+  .pct-bar { background: linear-gradient(to right, #16a34a, #eab308, #dc2626); height: 6px; border-radius: 9999px; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+<div class="flex max-w-[1600px] mx-auto">
+  <!-- Sidebar -->
+  <aside class="w-72 shrink-0 p-4 sticky top-0 h-screen overflow-y-auto bg-white border-r border-slate-200">
+    <h1 class="text-xl font-bold">Mazda MX-5 → Москва</h1>
+    <div id="scraped_at" class="text-xs text-slate-500 mb-4">—</div>
+
+    <div class="grid grid-cols-3 bg-slate-100 rounded-lg p-1 mb-3 gap-0.5">
+      <button data-src="drom" class="src-tab text-xs py-1.5 rounded-md font-medium">Drom DE</button>
+      <button data-src="autoscout" class="src-tab text-xs py-1.5 rounded-md font-medium">AutoScout</button>
+      <button data-src="drom_japan" class="src-tab text-xs py-1.5 rounded-md font-medium">Drom JP</button>
+    </div>
+
+    <div id="count" class="text-sm text-slate-500 mb-4">— объявлений</div>
+
+    <div class="space-y-5">
+      <div>
+        <label class="block text-sm font-medium mb-1">Сортировка</label>
+        <select id="sort" class="w-full border rounded px-2 py-1 text-sm">
+          <option value="wm_asc">Под ключ ₽ ↑</option>
+          <option value="wm_desc">Под ключ ₽ ↓</option>
+          <option value="price_asc">Цена € ↑</option>
+          <option value="price_desc">Цена € ↓</option>
+          <option value="year_desc">Год ↓</option>
+          <option value="year_asc">Год ↑</option>
+          <option value="mileage_asc">Пробег ↑</option>
+          <option value="mileage_desc">Пробег ↓</option>
+        </select>
+      </div>
+
+      <fieldset>
+        <legend class="text-sm font-medium mb-1">Объём двигателя</legend>
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="f_15" class="rounded"> 1.5L (132 л.с.)</label>
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="f_20" class="rounded"> 2.0L (184 л.с.)</label>
+      </fieldset>
+
+      <fieldset>
+        <legend class="text-sm font-medium mb-1">Кузов</legend>
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="f_rf" class="rounded"> RF (жёсткая крыша)</label>
+        <label class="flex items-center gap-2 text-sm" id="f_roadster_wrap"><input type="checkbox" id="f_roadster" class="rounded"> Roadster (мягкий верх)</label>
+      </fieldset>
+
+      <fieldset>
+        <legend class="text-sm font-medium mb-1">Опции</legend>
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="f_homura" class="rounded"> Homura</label>
+        <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="f_bose" class="rounded"> BOSE</label>
+      </fieldset>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Год от <span id="year_min_v" class="text-slate-500"></span></label>
+        <input type="range" id="year_min" class="w-full" step="1">
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Год до <span id="year_max_v" class="text-slate-500"></span></label>
+        <input type="range" id="year_max" class="w-full" step="1">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Цена € до <span id="price_max_v" class="text-slate-500"></span></label>
+        <input type="range" id="price_max" class="w-full" step="500">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Под ключ ₽ до <span id="wm_max_v" class="text-slate-500"></span></label>
+        <input type="range" id="wm_max" class="w-full" step="100000">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Пробег км до <span id="mileage_max_v" class="text-slate-500"></span></label>
+        <input type="range" id="mileage_max" class="w-full" step="1000">
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Поиск</label>
+        <input type="text" id="q" class="w-full border rounded px-2 py-1 text-sm" placeholder="Sendo, Kazari, Sport...">
+      </div>
+
+      <button id="reset" class="w-full text-sm py-2 bg-slate-100 hover:bg-slate-200 rounded">Сбросить фильтры</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 p-6">
+    <!-- Percentiles -->
+    <div id="pct" class="grid grid-cols-7 gap-2 mb-6"></div>
+
+    <!-- Cards -->
+    <div id="grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+
+    <div id="more" class="text-center mt-6">
+      <button id="load_more" class="hidden bg-slate-900 text-white py-2 px-6 rounded">Загрузить ещё</button>
+    </div>
+  </main>
+</div>
+
+<script>
+let CARS = [];
+let META = {};
+let RENDERED = 0;
+const PAGE = 60;
+let SOURCE = 'drom';
+
+const $ = (id) => document.getElementById(id);
+const fmtRub = (n) => n ? new Intl.NumberFormat('ru-RU').format(n) + ' ₽' : '—';
+const fmtEur = (n) => n ? new Intl.NumberFormat('de-DE').format(n) + ' €' : '—';
+const fmtYen = (n) => n ? new Intl.NumberFormat('ja-JP').format(n) + ' ¥' : '—';
+const fmtKm = (n) => n ? new Intl.NumberFormat('ru-RU').format(n) + ' км' : '—';
+
+function percentile(arr, p) {
+  if (!arr.length) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const idx = (sorted.length - 1) * p / 100;
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  return Math.round(sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo));
+}
+
+function getFilters() {
+  return {
+    sort: $('sort').value,
+    is15: $('f_15').checked,
+    is20: $('f_20').checked,
+    isRf: $('f_rf').checked,
+    isRoadster: $('f_roadster').checked,
+    isHomura: $('f_homura').checked,
+    isBose: $('f_bose').checked,
+    yearMin: +$('year_min').value,
+    yearMax: +$('year_max').value,
+    priceMax: +$('price_max').value,
+    wmMax: +$('wm_max').value,
+    mileageMax: +$('mileage_max').value,
+    q: $('q').value.trim().toLowerCase(),
+  };
+}
+
+function applyFilters() {
+  const f = getFilters();
+  let list = CARS.filter(c => {
+    if (f.is15 && !c.is_15) return false;
+    if (f.is20 && !c.is_20) return false;
+    if (f.isRf && !c.is_rf) return false;
+    if (f.isRoadster && !c.is_roadster) return false;
+    if (f.isHomura && !c.is_homura) return false;
+    if (f.isBose && !c.is_bose) return false;
+    if (c.year < f.yearMin || c.year > f.yearMax) return false;
+    if (c.price_eur > f.priceMax) return false;
+    if (c.wm_total_rub > f.wmMax && c.wm_total_rub > 0) return false;
+    if (c.mileage_km > f.mileageMax) return false;
+    if (f.q) {
+      const hay = (c.title + ' ' + c.subtitle).toLowerCase();
+      if (!hay.includes(f.q)) return false;
+    }
+    return true;
+  });
+
+  const cmps = {
+    wm_asc: (a, b) => a.wm_total_rub - b.wm_total_rub,
+    wm_desc: (a, b) => b.wm_total_rub - a.wm_total_rub,
+    price_asc: (a, b) => a.price_eur - b.price_eur,
+    price_desc: (a, b) => b.price_eur - a.price_eur,
+    year_desc: (a, b) => b.year - a.year,
+    year_asc: (a, b) => a.year - b.year,
+    mileage_asc: (a, b) => a.mileage_km - b.mileage_km,
+    mileage_desc: (a, b) => b.mileage_km - a.mileage_km,
+  };
+  list.sort(cmps[f.sort]);
+  return list;
+}
+
+function renderPercentiles(list) {
+  const vals = list.map(c => c.wm_total_rub).filter(x => x > 0);
+  const pcts = [5, 10, 25, 50, 75, 90, 95];
+  const colors = ['bg-emerald-100 text-emerald-900', 'bg-emerald-50 text-emerald-900',
+                  'bg-lime-50 text-lime-900', 'bg-amber-50 text-amber-900',
+                  'bg-orange-50 text-orange-900', 'bg-rose-50 text-rose-900',
+                  'bg-rose-100 text-rose-900'];
+  $('pct').innerHTML = pcts.map((p, i) => `
+    <div class="${colors[i]} rounded-lg p-3 text-center">
+      <div class="text-xs font-medium opacity-70">p${p}</div>
+      <div class="text-sm font-bold mt-1">${vals.length ? fmtRub(percentile(vals, p)) : '—'}</div>
+    </div>
+  `).join('');
+}
+
+function badge(label, cls) {
+  return `<span class="${cls} text-xs px-2 py-0.5 rounded">${label}</span>`;
+}
+
+function buildBreakdown(c) {
+  // Возвращаем массив пар [label, value_rub] для разбора цены
+  const items = [];
+  if (SOURCE === 'drom_japan') {
+    items.push(['Цена в Японии', c.dj_price_rub]);
+    items.push(['Расходы в Японии (аукцион)', c.dj_spending_abroad_rub]);
+    items.push(['Фрахт во Владивосток', c.dj_freight_to_vlad_rub]);
+    items.push(['Таможенная пошлина', c.dj_customs_duty_rub]);
+    items.push(['Таможенный сбор', c.dj_customs_fee_rub]);
+    items.push(['Утильсбор', c.dj_recycling_fee_rub]);
+    items.push(['Оформление + комиссия (среднее)', c.dj_reg_and_commission_rub]);
+    items.push(['Перегон Владивосток → Москва', c.dj_vlad_moscow_rub]);
+  } else {
+    items.push(['Цена авто', c.wm_car_price_rub]);
+    items.push(['Комиссия 7%', c.wm_commission_rub]);
+    items.push(['Экспортные документы', c.wm_export_docs_rub]);
+    items.push(['Доставка Rotterdam → Москва', c.wm_land_freight_rub]);
+    items.push(['Таможенная пошлина', c.wm_customs_duty_rub]);
+    items.push(['Таможенный сбор', c.wm_customs_fee_rub]);
+    items.push(['Утильсбор', c.wm_recycling_fee_rub]);
+    items.push(['СВХ', c.wm_storage_rub]);
+    items.push(['ПТС РФ', c.wm_pts_rub]);
+    items.push(['Услуги (брокер)', c.wm_services_rub]);
+  }
+  return items.filter(([, v]) => v && +v > 0);
+}
+
+function renderBreakdown(el) {
+  const items = JSON.parse(el.dataset.breakdown || '[]');
+  if (!items.length) { el.textContent = 'нет данных'; return; }
+  const total = items.reduce((s, [, v]) => s + (+v || 0), 0);
+  el.innerHTML = items.map(([label, value]) =>
+    `<div class="flex justify-between gap-2"><span class="text-slate-500">${label}</span><span class="font-mono">${fmtRub(value)}</span></div>`
+  ).join('') +
+    `<div class="flex justify-between gap-2 border-t border-slate-200 pt-1 mt-1 font-medium"><span>Итого</span><span class="font-mono">${fmtRub(total)}</span></div>`;
+}
+
+// Делегирование клика — карточки рендерятся динамически
+document.addEventListener('click', (ev) => {
+  const btn = ev.target.closest('.breakdown-btn');
+  if (!btn) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  const card = btn.closest('a');
+  const block = card.querySelector('.breakdown');
+  if (!block) return;
+  if (block.classList.contains('hidden')) {
+    renderBreakdown(block);
+    block.classList.remove('hidden');
+  } else {
+    block.classList.add('hidden');
+  }
+});
+
+function cardHtml(c) {
+  const badges = [];
+  if (c.is_rf) badges.push(badge('RF', 'bg-slate-900 text-white'));
+  if (c.is_homura) badges.push(badge('Homura', 'bg-fuchsia-600 text-white'));
+  if (c.is_bose) badges.push(badge('BOSE', 'bg-indigo-600 text-white'));
+  if (c.is_15) badges.push(badge('1.5L', 'bg-sky-100 text-sky-900'));
+  if (c.is_20) badges.push(badge('2.0L', 'bg-blue-200 text-blue-900'));
+  if (c.country && c.country !== 'DE' && SOURCE === 'autoscout') badges.push(badge(c.country, 'bg-amber-100 text-amber-900'));
+
+  return `
+    <a href="${c.url}" target="_blank" rel="noopener" class="bg-white rounded-xl shadow-sm hover:shadow-md transition overflow-hidden flex flex-col">
+      <img src="${c.image}" alt="" loading="lazy" class="card-img w-full"/>
+      <div class="p-3 flex-1 flex flex-col gap-2">
+        <div class="flex flex-wrap gap-1">${badges.join('')}</div>
+        <div class="font-medium">${c.title}</div>
+        <div class="text-xs text-slate-500 line-clamp-2">${c.subtitle || '&nbsp;'}</div>
+        <div class="grid grid-cols-2 gap-x-2 text-xs text-slate-600 mt-1">
+          <div>Пробег: <span class="text-slate-900">${fmtKm(c.mileage_km)}</span></div>
+          <div>Двиг.: <span class="text-slate-900">${c.engine_cc || '—'} см³</span></div>
+        </div>
+        <div class="mt-auto pt-2 border-t border-slate-100">
+          <div class="text-xs text-slate-500">${SOURCE === 'drom_japan' ? 'Цена в Японии' : (SOURCE === 'autoscout' ? 'Цена в ЕС' : 'Цена в Германии')}</div>
+          <div class="text-base">${SOURCE === 'drom_japan' ? fmtYen(c.price_yen) : fmtEur(c.price_eur)}</div>
+          <div class="text-xs text-slate-500 mt-1 flex items-center gap-1">
+            <span>Под ключ Москва${SOURCE === 'drom_japan' ? ' (дром, через Владик)' : ' (westmotors)'}</span>
+            <button type="button" class="breakdown-btn w-4 h-4 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] leading-none">?</button>
+          </div>
+          <div class="text-lg font-bold text-rose-700">${fmtRub(c.wm_total_rub)}</div>
+          <div class="breakdown hidden mt-2 text-[11px] text-slate-700 bg-slate-50 rounded p-2 space-y-0.5"
+               data-breakdown='${JSON.stringify(buildBreakdown(c)).replace(/'/g, "&#39;")}'></div>
+          ${c.drom_supported ? `<div class="text-xs text-slate-500 mt-1">Drom (без доставки): ${fmtRub(c.drom_total_rub)}</div>` : ''}
+          <div class="text-[10px] text-slate-400 mt-2">${c.date ? 'Размещено: ' + c.date : (c.city ? c.city + ', ' + (c.country || '') : '')}</div>
+        </div>
+      </div>
+    </a>`;
+}
+
+function rerender() {
+  const list = applyFilters();
+  $('count').textContent = `${list.length} объявлений`;
+  renderPercentiles(list);
+  RENDERED = 0;
+  $('grid').innerHTML = '';
+  appendMore(list);
+  window._currentList = list;
+}
+
+function appendMore(list) {
+  const slice = list.slice(RENDERED, RENDERED + PAGE);
+  $('grid').insertAdjacentHTML('beforeend', slice.map(cardHtml).join(''));
+  RENDERED += slice.length;
+  $('load_more').classList.toggle('hidden', RENDERED >= list.length);
+}
+
+function updateRangeLabels() {
+  $('year_min_v').textContent = $('year_min').value;
+  $('year_max_v').textContent = $('year_max').value;
+  $('price_max_v').textContent = (+$('price_max').value).toLocaleString('de-DE') + ' €';
+  $('wm_max_v').textContent = (+$('wm_max').value).toLocaleString('ru-RU') + ' ₽';
+  $('mileage_max_v').textContent = (+$('mileage_max').value).toLocaleString('ru-RU') + ' км';
+}
+
+function bindEvents() {
+  const ids = ['sort','f_15','f_20','f_rf','f_roadster','f_homura','f_bose','year_min','year_max',
+               'price_max','wm_max','mileage_max','q'];
+  ids.forEach(id => {
+    const el = $(id);
+    const ev = ['SELECT','INPUT'].includes(el.tagName) ? 'input' : 'change';
+    el.addEventListener(ev, () => { updateRangeLabels(); rerender(); });
+  });
+  $('load_more').addEventListener('click', () => appendMore(window._currentList || []));
+  $('reset').addEventListener('click', () => {
+    ['f_15','f_20','f_rf','f_roadster','f_homura','f_bose'].forEach(i => $(i).checked = false);
+    $('year_min').value = 2018; $('year_max').value = 2026;
+    $('price_max').value = 60000; $('wm_max').value = 12000000;
+    $('mileage_max').value = 50000; $('q').value = '';
+    $('sort').value = 'wm_asc';
+    updateRangeLabels(); rerender();
+  });
+}
+
+function updateTabStyles() {
+  document.querySelectorAll('.src-tab').forEach(b => {
+    if (b.dataset.src === SOURCE) {
+      b.className = 'src-tab text-xs py-1.5 rounded-md font-medium bg-white shadow text-slate-900';
+    } else {
+      b.className = 'src-tab text-xs py-1.5 rounded-md font-medium text-slate-600 hover:text-slate-900';
+    }
+  });
+}
+
+function autoRangeSlider(id, values, opts={}) {
+  if (!values.length) return;
+  const min = opts.min !== undefined ? opts.min : Math.min(...values);
+  const max = opts.max !== undefined ? opts.max : Math.max(...values);
+  const el = $(id);
+  el.min = min; el.max = max;
+  el.value = opts.defaultMax ? max : (opts.defaultMin ? min : el.value);
+  if (+el.value < min || +el.value > max) el.value = opts.defaultMax ? max : min;
+}
+
+function fitSlidersToData() {
+  const years = CARS.map(c => c.year).filter(y => y > 0);
+  const prices = CARS.map(c => c.price_eur).filter(p => p > 0);
+  const totals = CARS.map(c => c.wm_total_rub).filter(p => p > 0);
+  const km = CARS.map(c => c.mileage_km).filter(p => p >= 0);
+  autoRangeSlider('year_min', years, {defaultMin: true});
+  autoRangeSlider('year_max', years, {defaultMax: true});
+  autoRangeSlider('price_max', prices, {min: 0, defaultMax: true});
+  autoRangeSlider('wm_max', totals, {min: 0, defaultMax: true});
+  autoRangeSlider('mileage_max', km, {min: 0, defaultMax: true});
+}
+
+function loadSource(src) {
+  SOURCE = src;
+  updateTabStyles();
+  // Roadster чекбокс — для AutoScout и Drom JP (есть variant), скрыт для Drom DE
+  const rdWrap = $('f_roadster_wrap');
+  const showRd = (src === 'autoscout' || src === 'drom_japan');
+  if (rdWrap) rdWrap.style.display = showRd ? '' : 'none';
+  if (!showRd) $('f_roadster').checked = false;
+  $('scraped_at').textContent = META[src] ? 'Скрейп: ' + META[src] : '—';
+  fetch('data/' + src + '.json?t=' + Date.now(), {cache: 'no-store'})
+    .then(r => r.json()).then(data => {
+      CARS = data;
+      fitSlidersToData();
+      updateRangeLabels();
+      rerender();
+    });
+}
+
+document.querySelectorAll('.src-tab').forEach(b => {
+  b.addEventListener('click', () => loadSource(b.dataset.src));
+});
+
+updateRangeLabels();
+bindEvents();
+fetch('data/meta.json?t=' + Date.now(), {cache: 'no-store'})
+  .then(r => r.ok ? r.json() : {})
+  .then(m => { META = m || {}; loadSource('drom'); })
+  .catch(() => loadSource('drom'));
+</script>
+</body>
+</html>
